@@ -15,8 +15,21 @@ macro_rules! println_stderr(
     } }
 );
 
-fn run_command_or_fail(dir: &str, cmd: &str, args: &[&str]) {
-    println_stderr!("Running command: \"{} {}\" in dir: {}", cmd, args.join(" "), dir);
+fn run_command_or_fail<P>(dir: &str, cmd: P, args: &[&str])
+where
+    P: AsRef<Path>,
+{
+    let cmd = cmd.as_ref();
+    let cmd = if cmd.components().count() > 1 && cmd.is_relative() {
+        // If `cmd` is a relative path (and not a bare command that should be
+        // looked up in PATH), absolutize it relative to `dir`, as otherwise the
+        // behavior of std::process::Command is undefined.
+        // https://github.com/rust-lang/rust/issues/37868
+        PathBuf::from(dir).join(cmd).canonicalize().expect("canonicalization failed")
+    } else {
+        PathBuf::from(cmd)
+    };
+    println_stderr!("Running command: \"{} {}\" in dir: {}", cmd.display(), args.join(" "), dir);
     let ret = Command::new(cmd).current_dir(dir).args(args).status();
     match ret.map(|status| (status.success(), status.code())) {
         Ok((true, _)) => { return },
@@ -109,7 +122,7 @@ fn build_librdkafka() {
     }
 
     println!("Configuring librdkafka");
-    run_command_or_fail("librdkafka", "sh", &[&["-c", "./configure"], configure_flags.as_slice()].concat());
+    run_command_or_fail("librdkafka", "./configure", configure_flags.as_slice());
 
     println!("Compiling librdkafka");
     make_librdkafka();
