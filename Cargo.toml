@@ -11,10 +11,10 @@ categories = ["api-bindings"]
 edition = "2018"
 
 [dependencies]
-rdkafka-sys = { path = "rdkafka-sys", version = "1.0.1" }
+rdkafka-sys = { path = "rdkafka-sys", version = "1.2.1" }
 futures = "0.1.21"
 libc = "0.2.0"
-log = "0.3.0"
+log = "0.4.8"
 serde = "1.0.0"
 serde_derive = "1.0.0"
 serde_json = "1.0.0"
@@ -23,7 +23,7 @@ serde_json = "1.0.0"
 backoff = "0.1.5"
 chrono = "0.4.0"
 clap = "2.18.0"
-env_logger = "0.3.0"
+env_logger = "0.7.1"
 rand = "0.3.15"
 regex = "1.1.6"
 tokio = "0.1.7"
@@ -40,5 +40,9 @@ dynamic_linking = ["rdkafka-sys/dynamic_linking"]
 
 # Use external library for lz4. Use internal if not enabled.
 external_lz4 = ["rdkafka-sys/external_lz4"]
+
+# Enable support for zstd compression.
+zstd = ["rdkafka-sys/zstd"]
+zstd-pkg-config = ["rdkafka-sys/zstd-pkg-config"]
 
 cmake_build = ["rdkafka-sys/cmake_build"]

@@ -7,17 +7,17 @@ extern crate rdkafka_sys;
 
 use futures::*;
 
-use rdkafka::{ClientConfig, ClientContext, Message, Statistics, Timestamp};
-use rdkafka::consumer::{BaseConsumer, Consumer, ConsumerContext, CommitMode, StreamConsumer};
+use rdkafka::consumer::{BaseConsumer, CommitMode, Consumer, ConsumerContext, StreamConsumer};
 use rdkafka::error::{KafkaError, KafkaResult};
 use rdkafka::topic_partition_list::{Offset, TopicPartitionList};
 use rdkafka::util::current_time_millis;
+use rdkafka::{ClientConfig, ClientContext, Message, Statistics, Timestamp};
 
 mod utils;
 use crate::utils::*;
 
-use std::time::{Duration, Instant};
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
 struct TestContext {
     _n: i64, // Add data for memory access validation
@@ -32,7 +32,11 @@ impl ClientContext for TestContext {
 }
 
 impl ConsumerContext for TestContext {
-    fn commit_callback(&self, result: KafkaResult<()>, _offsets: *mut rdkafka_sys::RDKafkaTopicPartitionList) {
+    fn commit_callback(
+        &self,
+        result: KafkaResult<()>,
+        _offsets: *mut rdkafka_sys::RDKafkaTopicPartitionList,
+    ) {
         println!("Committing offsets: {:?}", result);
     }
 }
@@ -81,7 +85,7 @@ fn create_stream_consumer_with_context<C: ConsumerContext>(
 
 fn create_base_consumer(
     group_id: &str,
-    config_overrides: Option<HashMap<&str, &str>>
+    config_overrides: Option<HashMap<&str, &str>>,
 ) -> BaseConsumer<TestContext> {
     consumer_config(group_id, config_overrides)
         .create_with_context(TestContext { _n: 64 })
@@ -91,7 +95,7 @@ fn create_base_consumer(
 // All produced messages should be consumed.
 #[test]
 fn test_produce_consume_iter() {
-    let _r = env_logger::init();
+    let _r = env_logger::try_init();
 
     let start_time = current_time_millis();
     let topic_name = rand_test_topic();
@@ -105,13 +109,13 @@ fn test_produce_consume_iter() {
                 let id = message_map[&(m.partition(), m.offset())];
                 match m.timestamp() {
                     Timestamp::CreateTime(timestamp) => assert!(timestamp >= start_time),
-                    _ => panic!("Expected createtime for message timestamp")
+                    _ => panic!("Expected createtime for message timestamp"),
                 };
                 assert_eq!(m.payload_view::<str>().unwrap().unwrap(), value_fn(id));
                 assert_eq!(m.key_view::<str>().unwrap().unwrap(), key_fn(id));
                 assert_eq!(m.topic(), topic_name.as_str());
-            },
-            Err(e) => panic!("Error receiving message: {:?}", e)
+            }
+            Err(e) => panic!("Error receiving message: {:?}", e),
         }
     }
 }
@@ -119,7 +123,7 @@ fn test_produce_consume_iter() {
 // All produced messages should be consumed.
 #[test]
 fn test_produce_consume_base() {
-    let _r = env_logger::init();
+    let _r = env_logger::try_init();
 
     let start_time = current_time_millis();
     let topic_name = rand_test_topic();
@@ -127,7 +131,8 @@ fn test_produce_consume_base() {
     let consumer = create_stream_consumer(&rand_test_group(), None);
     consumer.subscribe(&[topic_name.as_str()]).unwrap();
 
-    let _consumer_future = consumer.start()
+    let _consumer_future = consumer
+        .start()
         .take(100)
         .for_each(|message| {
             match message {
@@ -135,13 +140,13 @@ fn test_produce_consume_base() {
                     let id = message_map[&(m.partition(), m.offset())];
                     match m.timestamp() {
                         Timestamp::CreateTime(timestamp) => assert!(timestamp >= start_time),
-                        _ => panic!("Expected createtime for message timestamp")
+                        _ => panic!("Expected createtime for message timestamp"),
                     };
                     assert_eq!(m.payload_view::<str>().unwrap().unwrap(), value_fn(id));
                     assert_eq!(m.key_view::<str>().unwrap().unwrap(), key_fn(id));
                     assert_eq!(m.topic(), topic_name.as_str());
-                },
-                Err(e) => panic!("Error receiving message: {:?}", e)
+                }
+                Err(e) => panic!("Error receiving message: {:?}", e),
             };
             Ok(())
         })
@@ -151,7 +156,7 @@ fn test_produce_consume_base() {
 // All produced messages should be consumed.
 #[test]
 fn test_produce_consume_base_assign() {
-    let _r = env_logger::init();
+    let _r = env_logger::try_init();
 
     let topic_name = rand_test_topic();
     populate_topic(&topic_name, 10, &value_fn, &key_fn, Some(0), None);
@@ -166,12 +171,13 @@ fn test_produce_consume_base_assign() {
 
     let mut partition_count = vec![0, 0, 0];
 
-    let _consumer_future = consumer.start()
+    let _consumer_future = consumer
+        .start()
         .take(19)
         .for_each(|message| {
             match message {
                 Ok(m) => partition_count[m.partition() as usize] += 1,
-                Err(e) => panic!("Error receiving message: {:?}", e)
+                Err(e) => panic!("Error receiving message: {:?}", e),
             };
             Ok(())
         })
@@ -183,14 +189,15 @@ fn test_produce_consume_base_assign() {
 // All produced messages should be consumed.
 #[test]
 fn test_produce_consume_with_timestamp() {
-    let _r = env_logger::init();
+    let _r = env_logger::try_init();
 
     let topic_name = rand_test_topic();
     let message_map = populate_topic(&topic_name, 100, &value_fn, &key_fn, Some(0), Some(1111));
     let consumer = create_stream_consumer(&rand_test_group(), None);
     consumer.subscribe(&[topic_name.as_str()]).unwrap();
 
-    let _consumer_future = consumer.start()
+    let _consumer_future = consumer
+        .start()
         .take(100)
         .for_each(|message| {
             match message {
@@ -199,8 +206,8 @@ fn test_produce_consume_with_timestamp() {
                     assert_eq!(m.timestamp(), Timestamp::CreateTime(1111));
                     assert_eq!(m.payload_view::<str>().unwrap().unwrap(), value_fn(id));
                     assert_eq!(m.key_view::<str>().unwrap().unwrap(), key_fn(id));
-                },
-                Err(e) => panic!("Error receiving message: {:?}", e)
+                }
+                Err(e) => panic!("Error receiving message: {:?}", e),
             };
             Ok(())
         })
@@ -209,7 +216,9 @@ fn test_produce_consume_with_timestamp() {
     populate_topic(&topic_name, 10, &value_fn, &key_fn, Some(0), Some(999_999));
 
     // Lookup the offsets
-    let tpl = consumer.offsets_for_timestamp(999_999, Duration::from_secs(10)).unwrap();
+    let tpl = consumer
+        .offsets_for_timestamp(999_999, Duration::from_secs(10))
+        .unwrap();
     let tp = tpl.find_partition(&topic_name, 0).unwrap();
     assert_eq!(tp.topic(), topic_name);
     assert_eq!(tp.offset(), Offset::Offset(100));
@@ -219,7 +228,7 @@ fn test_produce_consume_with_timestamp() {
 
 #[test]
 fn test_consume_with_no_message_error() {
-    let _r = env_logger::init();
+    let _r = env_logger::try_init();
 
     let consumer = create_stream_consumer(&rand_test_group(), None);
 
@@ -240,7 +249,7 @@ fn test_consume_with_no_message_error() {
                 }
             }
             Ok(m) => panic!("A message was actually received: {:?}", m),
-            Err(e) => panic!("Unexpected error while receiving message: {:?}", e)
+            Err(e) => panic!("Unexpected error while receiving message: {:?}", e),
         };
     }
 
@@ -251,12 +260,10 @@ fn test_consume_with_no_message_error() {
     assert!(first_poll_time.unwrap().elapsed() > Duration::from_millis(4500));
 }
 
-
-
 // TODO: add check that commit cb gets called correctly
 #[test]
 fn test_consumer_commit_message() {
-    let _r = env_logger::init();
+    let _r = env_logger::try_init();
 
     let topic_name = rand_test_topic();
     populate_topic(&topic_name, 10, &value_fn, &key_fn, Some(0), None);
@@ -265,7 +272,8 @@ fn test_consumer_commit_message() {
     let consumer = create_stream_consumer(&rand_test_group(), None);
     consumer.subscribe(&[topic_name.as_str()]).unwrap();
 
-    let _consumer_future = consumer.start()
+    let _consumer_future = consumer
+        .start()
         .take(33)
         .for_each(|message| {
             match message {
@@ -273,17 +281,26 @@ fn test_consumer_commit_message() {
                     if m.partition() == 1 {
                         consumer.commit_message(&m, CommitMode::Async).unwrap();
                     }
-                },
-                Err(e) => panic!("error receiving message: {:?}", e)
+                }
+                Err(e) => panic!("error receiving message: {:?}", e),
             };
             Ok(())
         })
         .wait();
 
     let timeout = Duration::from_secs(5);
-    assert_eq!(consumer.fetch_watermarks(&topic_name, 0, timeout).unwrap(), (0, 10));
-    assert_eq!(consumer.fetch_watermarks(&topic_name, 1, timeout).unwrap(), (0, 11));
-    assert_eq!(consumer.fetch_watermarks(&topic_name, 2, timeout).unwrap(), (0, 12));
+    assert_eq!(
+        consumer.fetch_watermarks(&topic_name, 0, timeout).unwrap(),
+        (0, 10)
+    );
+    assert_eq!(
+        consumer.fetch_watermarks(&topic_name, 1, timeout).unwrap(),
+        (0, 11)
+    );
+    assert_eq!(
+        consumer.fetch_watermarks(&topic_name, 2, timeout).unwrap(),
+        (0, 12)
+    );
 
     let mut assignment = TopicPartitionList::new();
     assignment.add_partition_offset(&topic_name, 0, Offset::Invalid);
@@ -306,7 +323,7 @@ fn test_consumer_commit_message() {
 
 #[test]
 fn test_consumer_store_offset_commit() {
-    let _r = env_logger::init();
+    let _r = env_logger::try_init();
 
     let topic_name = rand_test_topic();
     populate_topic(&topic_name, 10, &value_fn, &key_fn, Some(0), None);
@@ -318,7 +335,8 @@ fn test_consumer_store_offset_commit() {
     let consumer = create_stream_consumer(&rand_test_group(), Some(config));
     consumer.subscribe(&[topic_name.as_str()]).unwrap();
 
-    let _consumer_future = consumer.start()
+    let _consumer_future = consumer
+        .start()
         .take(36)
         .for_each(|message| {
             match message {
@@ -326,9 +344,9 @@ fn test_consumer_store_offset_commit() {
                     if m.partition() == 1 {
                         consumer.store_offset(&m).unwrap();
                     }
-                },
-                Err(KafkaError::PartitionEOF(_)) => {},
-                Err(e) => panic!("Error receiving message: {:?}", e)
+                }
+                Err(KafkaError::PartitionEOF(_)) => {}
+                Err(e) => panic!("Error receiving message: {:?}", e),
             };
             Ok(())
         })
@@ -338,9 +356,18 @@ fn test_consumer_store_offset_commit() {
     consumer.commit_consumer_state(CommitMode::Sync).unwrap();
 
     let timeout = Duration::from_secs(5);
-    assert_eq!(consumer.fetch_watermarks(&topic_name, 0, timeout).unwrap(), (0, 10));
-    assert_eq!(consumer.fetch_watermarks(&topic_name, 1, timeout).unwrap(), (0, 11));
-    assert_eq!(consumer.fetch_watermarks(&topic_name, 2, timeout).unwrap(), (0, 12));
+    assert_eq!(
+        consumer.fetch_watermarks(&topic_name, 0, timeout).unwrap(),
+        (0, 10)
+    );
+    assert_eq!(
+        consumer.fetch_watermarks(&topic_name, 1, timeout).unwrap(),
+        (0, 11)
+    );
+    assert_eq!(
+        consumer.fetch_watermarks(&topic_name, 2, timeout).unwrap(),
+        (0, 12)
+    );
 
     let mut assignment = TopicPartitionList::new();
     assignment.add_partition_offset(&topic_name, 0, Offset::Invalid);
@@ -359,4 +386,56 @@ fn test_consumer_store_offset_commit() {
     position.add_partition_offset(&topic_name, 1, Offset::Offset(11));
     position.add_partition_offset(&topic_name, 2, Offset::Offset(12));
     assert_eq!(position, consumer.position().unwrap());
+}
+
+fn ensure_empty<C: ConsumerContext>(consumer: &BaseConsumer<C>, err_msg: &str) {
+    const MAX_TRY_TIME: Duration = Duration::from_secs(2);
+    let start = Instant::now();
+    while start.elapsed() < MAX_TRY_TIME {
+        assert!(consumer.poll(MAX_TRY_TIME).is_none(), "{}", err_msg);
+    }
+}
+
+#[test]
+fn test_pause_resume_consumer_iter() {
+    const PAUSE_COUNT: i32 = 3;
+    const MESSAGE_COUNT: i32 = 300;
+    const MESSAGES_PER_PAUSE: i32 = MESSAGE_COUNT / PAUSE_COUNT;
+
+    let _r = env_logger::try_init();
+
+    let topic_name = rand_test_topic();
+    populate_topic(
+        &topic_name,
+        MESSAGE_COUNT,
+        &value_fn,
+        &key_fn,
+        Some(0),
+        None,
+    );
+    let group_id = rand_test_group();
+    let consumer = create_base_consumer(&group_id, None);
+    consumer.subscribe(&[topic_name.as_str()]).unwrap();
+
+    for _ in 0..PAUSE_COUNT {
+        let mut num_taken = 0;
+        for message in consumer.iter().take(MESSAGES_PER_PAUSE as usize) {
+            message.unwrap();
+            num_taken += 1;
+        }
+        assert_eq!(num_taken, MESSAGES_PER_PAUSE);
+
+        let partitions = consumer.assignment().unwrap();
+        assert!(partitions.count() > 0);
+        consumer.pause(&partitions).unwrap();
+
+        ensure_empty(
+            &consumer,
+            "Partition is paused - we should not receive anything",
+        );
+
+        consumer.resume(&partitions).unwrap();
+    }
+
+    ensure_empty(&consumer, "There should be no messages left");
 }
